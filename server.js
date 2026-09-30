@@ -60,12 +60,12 @@ app.post("/upload", upload.single("file"), async (req, res) => {
                 });
 
         if (error) {
-            console.error(error);
+    console.error("SUPABASE ERROR:", error);
 
-            return res.status(500).json({
-                error: "Ошибка загрузки файла"
-            });
-        }
+    return res.status(500).json({
+        error: "Supabase: " + error.message
+    });
+}
 
         files.set(code, {
             path: filePath,
