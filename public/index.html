@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyTransfer</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Arial, sans-serif;
+    background:
+        radial-gradient(circle at top left, #334155, transparent 40%),
+        radial-gradient(circle at bottom right, #1e3a8a, transparent 40%),
+        #020617;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    width: 92%;
+    max-width: 650px;
+}
+
+.logo {
+    text-align: center;
+    font-size: 38px;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.logo span {
+    color: #60a5fa;
+}
+
+.subtitle {
+    text-align: center;
+    color: #94a3b8;
+    margin-bottom: 30px;
+}
+
+.card {
+    background: rgba(15, 23, 42, .82);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 25px;
+    padding: 30px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.45);
+    backdrop-filter: blur(20px);
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.tab {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #1e293b;
+    color: #94a3b8;
+    font-size: 15px;
+}
+
+.tab.active {
+    background: #2563eb;
+    color: white;
+}
+
+.section {
+    display: none;
+}
+
+.section.active {
+    display: block;
+}
+
+.drop {
+    display: block;
+    border: 2px dashed #475569;
+    border-radius: 20px;
+    padding: 45px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: .2s;
+}
+
+.drop:hover {
+    border-color: #60a5fa;
+    background: rgba(37,99,235,.08);
+}
+
+.icon {
+    font-size: 50px;
+    margin-bottom: 10px;
+}
+
+.drop strong {
+    font-size: 18px;
+}
+
+.drop p {
+    color: #64748b;
+}
+
+input[type=file] {
+    display: none;
+}
+
+button.main {
+    width: 100%;
+    margin-top: 18px;
+    padding: 15px;
+    border: none;
+    border-radius: 13px;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.main:hover {
+    background: #1d4ed8;
+}
+
+.result {
+    display: none;
+    margin-top: 25px;
+    padding: 25px;
+    border-radius: 18px;
+    background: #0f172a;
+    text-align: center;
+}
+
+.result.show {
+    display: block;
+}
+
+.code {
+    font-size: 42px;
+    font-weight: bold;
+    color: #60a5fa;
+    letter-spacing: 8px;
+    margin: 15px;
+}
+
+.filename {
+    color: #cbd5e1;
+}
+
+.status {
+    margin-top: 15px;
+    color: #94a3b8;
+}
+
+.code-input {
+    width: 100%;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1px solid #334155;
+    background: #020617;
+    color: white;
+    text-align: center;
+    font-size: 28px;
+    letter-spacing: 8px;
+    outline: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="logo">
+        My<span>Transfer</span>
+    </div>
+
+    <div class="subtitle">
+        Передавай файлы между компьютерами
+    </div>
+
+    <div class="card">
+
+        <div class="tabs">
+
+            <button
+                class="tab active"
+                onclick="showTab('upload', this)">
+                📤 Отправить
+            </button>
+
+            <button
+                class="tab"
+                onclick="showTab('download', this)">
+                📥 Получить
+            </button>
+
+        </div>
+
+        <div id="upload" class="section active">
+
+            <label class="drop">
+
+                <div class="icon">📁</div>
+
+                <strong id="fileText">
+                    Выбери файл
+                </strong>
+
+                <p>
+                    Нажми здесь, чтобы выбрать файл
+                </p>
+
+                <input
+                    type="file"
+                    id="file"
+                    onchange="fileSelected()">
+
+            </label>
+
+            <button
+                class="main"
+                onclick="uploadFile()">
+                Загрузить файл
+            </button>
+
+            <div id="uploadResult" class="result">
+
+                <div>Твой код:</div>
+
+                <div
+                    class="code"
+                    id="code">
+                    ------
+                </div>
+
+                <div
+                    class="filename"
+                    id="uploadedName">
+                </div>
+
+                <div class="status">
+                    Введи этот код на другом компьютере.
+                </div>
+
+            </div>
+
+        </div>
+
+        <div id="download" class="section">
+
+            <input
+                class="code-input"
+                id="downloadCode"
+                maxlength="6"
+                placeholder="000000">
+
+            <button
+                class="main"
+                onclick="findFile()">
+                Найти файл
+            </button>
+
+            <div
+                id="downloadResult"
+                class="result">
+
+                <div
+                    class="filename"
+                    id="downloadName">
+                </div>
+
+                <button
+                    class="main"
+                    onclick="downloadFile()">
+                    📥 Скачать
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+let selectedFile = null;
+let currentCode = null;
+
+function showTab(tab, button) {
+
+    document
+        .querySelectorAll(".section")
+        .forEach(x => x.classList.remove("active"));
+
+    document
+        .querySelectorAll(".tab")
+        .forEach(x => x.classList.remove("active"));
+
+    document
+        .getElementById(tab)
+        .classList.add("active");
+
+    button.classList.add("active");
+}
+
+function fileSelected() {
+
+    selectedFile =
+        document.getElementById("file").files[0];
+
+    if (selectedFile) {
+
+        document.getElementById("fileText").textContent =
+            selectedFile.name;
+    }
+}
+
+async function uploadFile() {
+
+    if (!selectedFile) {
+
+        alert("Сначала выбери файл");
+
+        return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("file", selectedFile);
+
+    try {
+
+        const response =
+            await fetch("/upload", {
+                method: "POST",
+                body: formData
+            });
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+
+            alert(data.error);
+
+            return;
+        }
+
+        document
+            .getElementById("uploadResult")
+            .classList.add("show");
+
+        document
+            .getElementById("code")
+            .textContent = data.code;
+
+        document
+            .getElementById("uploadedName")
+            .textContent = data.filename;
+
+    } catch (error) {
+
+        alert("Ошибка соединения с сервером");
+    }
+}
+
+async function findFile() {
+
+    const code =
+        document.getElementById("downloadCode").value;
+
+    if (code.length !== 6) {
+
+        alert("Введи 6-значный код");
+
+        return;
+    }
+
+    const response =
+        await fetch("/file/" + code);
+
+    const data =
+        await response.json();
+
+    if (!response.ok) {
+
+        alert(data.error);
+
+        return;
+    }
+
+    currentCode = code;
+
+    document
+        .getElementById("downloadResult")
+        .classList.add("show");
+
+    document
+        .getElementById("downloadName")
+        .textContent =
+            "📄 " + data.filename;
+}
+
+function downloadFile() {
+
+    if (!currentCode) return;
+
+    window.location.href =
+        "/download/" + currentCode;
+}
+
+</script>
+
+</body>
+</html>
