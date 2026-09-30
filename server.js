@@ -4,7 +4,6 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-
 const PORT = process.env.PORT || 3000;
 
 const supabase = createClient(
@@ -23,12 +22,12 @@ const upload = multer({
 
 const files = new Map();
 
+app.use(express.json());
+app.use(express.static("public"));
+
 function generateCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
-
-app.use(express.json());
-app.use(express.static("public"));
 
 app.post("/upload", upload.single("file"), async (req, res) => {
 
@@ -39,39 +38,40 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     }
 
     try {
-
         const code = generateCode();
 
-        const fileId =
-            crypto.randomBytes(16).toString("hex");
+        const extension = req.file.originalname.includes(".")
+            ? "." + req.file.originalname.split(".").pop()
+            : "";
 
-        const safeName =
-            req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const fileName =
+            crypto.randomBytes(16).toString("hex") + extension;
 
-        const filePath =
-            `${fileId}-${safeName}`;
+        console.log("Uploading:", fileName);
+        console.log("Bucket:", BUCKET);
 
-        const { error } =
-            await supabase.storage
-                .from(BUCKET)
-                .upload(filePath, req.file.buffer, {
-                    contentType: req.file.mimetype,
-                    upsert: false
-                });
+        const { error } = await supabase.storage
+            .from(BUCKET)
+            .upload(fileName, req.file.buffer, {
+                contentType: req.file.mimetype || "application/octet-stream",
+                upsert: false
+            });
 
         if (error) {
-    console.error("SUPABASE ERROR:", error);
+            console.error("SUPABASE ERROR:", error);
 
-    return res.status(500).json({
-        error: "Supabase: " + error.message
-    });
-}
+            return res.status(500).json({
+                error: "Supabase: " + error.message
+            });
+        }
 
         files.set(code, {
-            path: filePath,
+            path: fileName,
             originalname: req.file.originalname,
             size: req.file.size
         });
+
+        console.log("Upload successful:", code);
 
         res.json({
             success: true,
@@ -80,11 +80,10 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         });
 
     } catch (error) {
-
-        console.error(error);
+        console.error("SERVER ERROR:", error);
 
         res.status(500).json({
-            error: "Ошибка сервера"
+            error: "Ошибка сервера: " + error.message
         });
     }
 });
@@ -114,25 +113,21 @@ app.get("/download/:code", async (req, res) => {
     }
 
     try {
-
         const { data: file, error } =
             await supabase.storage
                 .from(BUCKET)
                 .download(data.path);
 
         if (error || !file) {
-            console.error(error);
+            console.error("DOWNLOAD ERROR:", error);
 
             return res.status(404).send(
                 "Файл больше не существует"
             );
         }
 
-        const arrayBuffer =
-            await file.arrayBuffer();
-
         const buffer =
-            Buffer.from(arrayBuffer);
+            Buffer.from(await file.arrayBuffer());
 
         res.setHeader(
             "Content-Type",
@@ -147,8 +142,7 @@ app.get("/download/:code", async (req, res) => {
         res.send(buffer);
 
     } catch (error) {
-
-        console.error(error);
+        console.error("DOWNLOAD SERVER ERROR:", error);
 
         res.status(500).send(
             "Ошибка скачивания файла"
@@ -168,9 +162,18 @@ app.delete("/file/:code", async (req, res) => {
 
     try {
 
-        await supabase.storage
-            .from(BUCKET)
-            .remove([data.path]);
+        const { error } =
+            await supabase.storage
+                .from(BUCKET)
+                .remove([data.path]);
+
+        if (error) {
+            console.error("DELETE ERROR:", error);
+
+            return res.status(500).json({
+                error: error.message
+            });
+        }
 
         files.delete(req.params.code);
 
@@ -189,7 +192,5 @@ app.delete("/file/:code", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(
-        `MyTransfer запущен на порту ${PORT}`
-    );
+    console.log(`MyTransfer запущен на порту ${PORT}`);
 });
