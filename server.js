@@ -1,35 +1,21 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 const crypto = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
-const uploadDir = path.join(__dirname, "uploads");
 
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SECRET_KEY
+);
 
-app.use(express.json());
-app.use(express.static("public"));
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-
-    filename: (req, file, cb) => {
-        const id = crypto.randomBytes(8).toString("hex");
-        const ext = path.extname(file.originalname);
-
-        cb(null, id + ext);
-    }
-});
+const BUCKET = "files";
 
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: 500 * 1024 * 1024
     }
@@ -41,7 +27,10 @@ function generateCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-app.post("/upload", upload.single("file"), (req, res) => {
+app.use(express.json());
+app.use(express.static("public"));
+
+app.post("/upload", upload.single("file"), async (req, res) => {
 
     if (!req.file) {
         return res.status(400).json({
@@ -49,20 +38,55 @@ app.post("/upload", upload.single("file"), (req, res) => {
         });
     }
 
-    const code = generateCode();
+    try {
 
-    files.set(code, {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        size: req.file.size,
-        created: Date.now()
-    });
+        const code = generateCode();
 
-    res.json({
-        success: true,
-        code: code,
-        filename: req.file.originalname
-    });
+        const fileId =
+            crypto.randomBytes(16).toString("hex");
+
+        const safeName =
+            req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+        const filePath =
+            `${fileId}-${safeName}`;
+
+        const { error } =
+            await supabase.storage
+                .from(BUCKET)
+                .upload(filePath, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: false
+                });
+
+        if (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                error: "Ошибка загрузки файла"
+            });
+        }
+
+        files.set(code, {
+            path: filePath,
+            originalname: req.file.originalname,
+            size: req.file.size
+        });
+
+        res.json({
+            success: true,
+            code: code,
+            filename: req.file.originalname
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+            error: "Ошибка сервера"
+        });
+    }
 });
 
 app.get("/file/:code", (req, res) => {
@@ -81,7 +105,7 @@ app.get("/file/:code", (req, res) => {
     });
 });
 
-app.get("/download/:code", (req, res) => {
+app.get("/download/:code", async (req, res) => {
 
     const data = files.get(req.params.code);
 
@@ -89,16 +113,50 @@ app.get("/download/:code", (req, res) => {
         return res.status(404).send("Файл не найден");
     }
 
-    const filePath = path.join(uploadDir, data.filename);
+    try {
 
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).send("Файл больше не существует");
+        const { data: file, error } =
+            await supabase.storage
+                .from(BUCKET)
+                .download(data.path);
+
+        if (error || !file) {
+            console.error(error);
+
+            return res.status(404).send(
+                "Файл больше не существует"
+            );
+        }
+
+        const arrayBuffer =
+            await file.arrayBuffer();
+
+        const buffer =
+            Buffer.from(arrayBuffer);
+
+        res.setHeader(
+            "Content-Type",
+            "application/octet-stream"
+        );
+
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${encodeURIComponent(data.originalname)}"`
+        );
+
+        res.send(buffer);
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).send(
+            "Ошибка скачивания файла"
+        );
     }
-
-    res.download(filePath, data.originalname);
 });
 
-app.delete("/file/:code", (req, res) => {
+app.delete("/file/:code", async (req, res) => {
 
     const data = files.get(req.params.code);
 
@@ -108,19 +166,30 @@ app.delete("/file/:code", (req, res) => {
         });
     }
 
-    const filePath = path.join(uploadDir, data.filename);
+    try {
 
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        await supabase.storage
+            .from(BUCKET)
+            .remove([data.path]);
+
+        files.delete(req.params.code);
+
+        res.json({
+            success: true
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+            error: "Ошибка удаления"
+        });
     }
-
-    files.delete(req.params.code);
-
-    res.json({
-        success: true
-    });
 });
 
 app.listen(PORT, () => {
-    console.log(`Сайт запущен: http://localhost:${PORT}`);
+    console.log(
+        `MyTransfer запущен на порту ${PORT}`
+    );
 });
